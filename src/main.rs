@@ -1,7 +1,7 @@
 use ansi_term::{Color, Style};
 use clap::Parser;
 use headless_chrome::Browser;
-use std::{error::Error, sync::Arc, thread};
+use std::{sync::Arc, thread};
 
 #[derive(Parser)]
 struct Cli {
@@ -11,28 +11,30 @@ struct Cli {
 fn main() {
     let keywords = Cli::parse().keywords;
     let input = format!("https://www.google.com/search?q={}", keywords);
-    browse(input).unwrap();
+    browse(input);
 }
 
-fn browse(input: String) -> Result<(), Box<dyn Error>> {
+fn browse(input: String) {
     let browser = Browser::default().unwrap();
 
     let tab = browser.wait_for_initial_tab().unwrap();
-    let rc_cnt = Arc::strong_count(&tab);
 
     tab.navigate_to(&input).unwrap();
 
     let mut completed_element_ids: Vec<u32> = Vec::new();
 
+    let rc_cnt = Arc::strong_count(&tab);
     let tab_clone = tab.clone();
     thread::spawn(move || {
         tab_clone.wait_until_navigated().unwrap();
     });
+
     loop {
         let mut is_last = false;
         if Arc::strong_count(&tab) == rc_cnt {
             is_last = true;
         }
+
         let div_elements = tab.wait_for_elements("div.tF2Cxc").unwrap();
         for div_element in div_elements {
             let id = div_element.backend_node_id;
@@ -51,8 +53,8 @@ fn browse(input: String) -> Result<(), Box<dyn Error>> {
                 break;
             }
             let url = a_element.unwrap().get_attributes().unwrap().unwrap()[1].to_string();
-            let mut overview = String::new();
 
+            let mut overview = String::new();
             let overview_div = div_element.find_element("div.VwiC3b");
             if overview_div.is_ok() {
                 overview = overview_div.unwrap().get_inner_text().unwrap();
@@ -70,6 +72,4 @@ fn browse(input: String) -> Result<(), Box<dyn Error>> {
             break;
         }
     }
-
-    Ok(())
 }
